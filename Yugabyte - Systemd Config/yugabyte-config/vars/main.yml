@@ -1,0 +1,10 @@
+# vars.yml
+
+yugabyte_version: "2.15.1.0"
+yugabyte_base_path: "/home/ubuntu/yugabyte-{{ yugabyte_version }}"
+yugabyte_master_ports: "7100"
+yugabyte_masters:
+  - "172.31.41.220:{{ yugabyte_master_ports }}"
+  - "172.31.43.196:{{ yugabyte_master_ports }}"
+  - "172.31.45.219:{{ yugabyte_master_ports }}"
+

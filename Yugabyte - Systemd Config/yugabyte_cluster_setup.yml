@@ -1,0 +1,7 @@
+---
+- name: Configure and Start YugabyteDB
+  hosts: all
+  become: true
+  roles:
+    - yugabyte-config
+
