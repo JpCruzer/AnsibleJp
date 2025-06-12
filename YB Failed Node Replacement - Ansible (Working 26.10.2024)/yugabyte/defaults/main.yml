@@ -1,0 +1,8 @@
+---
+yugabyte_base_path: "/mnt/myvolume/yugabyte-2.20.2.0"
+new: "172.26.18.60"
+failed: "172.26.17.5"
+Yb1: "172.26.22.125"
+Yb2: "172.26.17.66"
+
+master_addresses: "{{ Yb1 }}:7100,{{ Yb2 }}:7100,{{ failed }}:7100,{{ new }}:7100"

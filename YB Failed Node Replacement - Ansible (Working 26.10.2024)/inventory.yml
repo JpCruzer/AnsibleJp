@@ -1,0 +1,16 @@
+[node_1]
+ubuntu@172.26.22.125
+
+[node_2]
+ubuntu@172.26.17.66
+
+[new_node]
+ubuntu@172.26.18.60
+
+[failed_node]
+ubuntu@172.26.17.5
+
+[active_nodes]
+ubuntu@172.26.22.125
+ubuntu@172.26.17.66
+ubuntu@172.26.18.60

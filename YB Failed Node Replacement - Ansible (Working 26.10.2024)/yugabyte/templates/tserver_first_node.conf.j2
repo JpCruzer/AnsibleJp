@@ -1,0 +1,8 @@
+--tserver_master_addrs={{ master_addresses }}
+--rpc_bind_addresses={{ new }}:9100
+--enable_ysql
+--ysql_log_statement=all
+--fs_data_dirs={{ yugabyte_base_path }}/mydisk1,{{ yugabyte_base_path }}/mydisk2
+--placement_cloud=aws
+--placement_region=us-west-1
+--placement_zone=us-west-1b

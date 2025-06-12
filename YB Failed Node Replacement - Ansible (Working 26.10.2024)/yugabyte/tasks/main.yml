@@ -1,0 +1,181 @@
+---
+
+- name: Set private IP address as a fact
+  set_fact:
+    private_ip: "{{ ansible_default_ipv4.address }}"
+
+- name: Apply Master First Node template on New Node
+  become: true
+  template:
+    src: master_first_node.conf.j2
+    dest: "{{ yugabyte_base_path }}/master.conf"
+  when: inventory_hostname in groups['new_node']
+
+- name: Apply Tserver First Node template on New Node
+  become: true
+  template:
+    src: tserver_first_node.conf.j2
+    dest: "{{ yugabyte_base_path }}/tserver.conf"
+  when: inventory_hostname in groups['new_node']
+
+- name: Change ownership of Yugabyte directory
+  become: true
+  file:
+    path: "{{ yugabyte_base_path }}"
+    owner: ubuntu
+    group: ubuntu
+    recurse: true
+  when: inventory_hostname in groups['new_node']
+
+
+- name: Create systemd unit file for yb-master
+  become: true
+  copy:
+    dest: /etc/systemd/system/yb-master.service
+    content: |
+      [Unit]
+      Description=Yugabyte Master Service
+      After=network.target
+
+      [Service]
+      User=ubuntu
+      ExecStart={{ yugabyte_base_path }}/bin/yb-master --flagfile {{ yugabyte_base_path }}/master.conf
+      StandardOutput=file:{{ yugabyte_base_path }}/mydisk1/yb-master.out
+      StandardError=inherit
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  when: inventory_hostname in groups['new_node']
+
+- name: Create systemd unit file for yb-tserver
+  become: true
+  copy:
+    dest: /etc/systemd/system/yb-tserver.service
+    content: |
+      [Unit]
+      Description=Yugabyte TServer Service
+      After=network.target
+
+      [Service]
+      User=ubuntu
+      ExecStart={{ yugabyte_base_path }}/bin/yb-tserver --flagfile {{ yugabyte_base_path }}/tserver.conf
+      StandardOutput=file:{{ yugabyte_base_path }}/mydisk1/yb-tserver.out
+      StandardError=inherit
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  when: inventory_hostname in groups['new_node']
+
+- name: Reload systemd to apply new service files
+  become: true
+  systemd:
+    daemon_reload: true
+  when: inventory_hostname in groups['new_node']
+
+- name: Start the yb-master service on New Node
+  become: true
+  systemd:
+    name: yb-master
+    state: started
+    enabled: true
+  when: inventory_hostname in groups['new_node']
+
+- name: Start the yb-tserver service on New Node
+  become: true
+  systemd:
+    name: yb-tserver
+    state: started
+    enabled: true
+  when: inventory_hostname in groups['new_node']
+
+- name: Blacklist the Failed Node
+  become: true
+  shell: >
+    {{ yugabyte_base_path }}/bin/yb-admin -master_addresses {{ master_addresses }} change_blacklist ADD {{ failed }}
+  when: inventory_hostname in groups['node_1']
+  args:
+    executable: /bin/bash
+
+
+- name: Check data transfer completion
+  become: true
+  shell: >
+    cd {{ yugabyte_base_path }} && ./bin/yb-admin -master_addresses {{ master_addresses }} get_load_move_completion
+  register: transfer_completion
+  until: transfer_completion.stdout is search("Percent complete = 100")
+  retries: 99999999  # Adjust the number of retries as needed
+  delay: 60    # Wait for given seconds between retries
+  when: inventory_hostname in groups['node_1']
+  args:
+    executable: /bin/bash
+
+
+- name: Add New Node to Master Quorum
+  become: true
+  shell: >
+    {{ yugabyte_base_path }}/bin/yb-admin -master_addresses {{ master_addresses }} change_master_config ADD_SERVER {{ new }} 7100
+  when: inventory_hostname in groups['new_node']
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
+
+- name: Remove Failed Node from Master Quorum
+  become: true
+  shell: > 
+    {{ yugabyte_base_path }}/bin/yb-admin -master_addresses {{ master_addresses }} change_master_config REMOVE_SERVER {{ failed }} 7100
+  when: inventory_hostname in groups['node_1']
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
+
+- name: Stop the yb-master service on Failed Node
+  become: true
+  systemd:
+    name: yb-master
+    state: stopped
+  when: inventory_hostname in groups['failed_node']
+  ignore_errors: true
+
+- name: Stop the yb-tserver service on Failed Node
+  become: true
+  systemd:
+    name: yb-tserver
+    state: stopped
+  when: inventory_hostname in groups['failed_node']
+  ignore_errors: true
+
+- name: Apply Master config for All Nodes (Excluding Failed Node)
+  become: true
+  template:
+    src: master_all_nodes.conf.j2
+    dest: "{{ yugabyte_base_path }}/master.conf"
+  when: 
+    inventory_hostname in groups['active_nodes']
+    
+
+
+- name: Apply Tserver config for All Nodes (Excluding Failed Node)
+  become: true
+  template:
+    src: tserver_all_nodes.conf.j2
+    dest: "{{ yugabyte_base_path }}/tserver.conf"
+  when: 
+    inventory_hostname in groups['active_nodes']
+
+- name: Restart the yb-master service on All Nodes (except failed node)
+  become: true
+  systemd:
+    name: yb-master
+    state: restarted
+  when: 
+    inventory_hostname in groups['active_nodes']
+
+- name: Restart the yb-tserver service on All Nodes (except failed node)
+  become: true
+  systemd:
+    name: yb-tserver
+    state: restarted
+  when: 
+    inventory_hostname in groups['active_nodes']
