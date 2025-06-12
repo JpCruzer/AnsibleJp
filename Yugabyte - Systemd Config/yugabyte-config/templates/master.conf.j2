@@ -1,0 +1,6 @@
+--master_addresses={{ yugabyte_masters | join(',') }}
+--rpc_bind_addresses={{ private_ip }}:7100
+--fs_data_dirs={{ yugabyte_base_path }}/disk1,{{ yugabyte_base_path }}/disk2
+--placement_cloud=aws
+--placement_region=ap-south-1
+--placement_zone=ap-south-1a
